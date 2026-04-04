@@ -337,6 +337,16 @@ body {
   transform: translateY(0);
 }
 
+.site-footer {
+  width: min(100%, 1240px);
+  margin: 0 auto 12px;
+  text-align: center;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(238, 232, 221, 0.62);
+}
+
 @media (max-width: 960px) {
   body {
     padding: 18px;
