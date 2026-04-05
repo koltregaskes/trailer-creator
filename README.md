@@ -17,6 +17,7 @@ It pulls together the story hook, character, lore, key scenes, image prompts, an
 - Core dossier workflow is in place
 - Source text files can be loaded into the browser experience
 - Copy and download flows are already wired
+- Installable as a lightweight PWA for quick access on desktop or Android
 
 ## Key Files
 

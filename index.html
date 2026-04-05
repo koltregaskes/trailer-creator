@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Trailer Creator is a local dossier workspace for shaping story hooks, lore, scenes, prompts, and narration."
+    />
+    <meta name="theme-color" content="#182029" />
+    <link rel="manifest" href="manifest.json" />
     <title>Trailer Creator Dossier</title>
     <link rel="stylesheet" href="style.css" />
   </head>
@@ -20,6 +26,7 @@
       </div>
 
       <div class="hero__actions">
+        <button class="btn btn--ghost" id="installAppBtn" type="button" hidden>Install app</button>
         <button class="btn btn--ghost" id="copyBriefBtn" type="button">Copy full brief</button>
         <button class="btn btn--primary" id="downloadBriefBtn" type="button">Download brief</button>
       </div>
@@ -98,6 +105,7 @@
 
     <div class="toast" id="toast" aria-live="polite"></div>
 
+    <script src="pwa.js" defer></script>
     <script src="script.js" defer></script>
   </body>
 </html>
