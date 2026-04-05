@@ -1,3 +1,6 @@
+const STORAGE_KEY = 'trailer-creator:draft-v2';
+const DEFAULT_PROJECT_TITLE = 'Untitled trailer concept';
+
 const CONTENT_FILES = {
   storyHook: 'story_hook.txt',
   character: 'main_character.txt',
@@ -64,12 +67,38 @@ VOICEOVER: The future is a language. And he's the only one left who can read it.
 
 function normalizeText(text) {
   return text
-    .replace(/â€”/g, '-')
-    .replace(/â€¦/g, '...')
-    .replace(/â€™/g, "'")
-    .replace(/â€œ/g, '"')
-    .replace(/â€�/g, '"')
+    .replace(/Ã¢â‚¬â€/g, '-')
+    .replace(/Ã¢â‚¬Â¦/g, '...')
+    .replace(/Ã¢â‚¬â„¢/g, "'")
+    .replace(/Ã¢â‚¬Å“/g, '"')
+    .replace(/Ã¢â‚¬ï¿½/g, '"')
     .trim();
+}
+
+function sanitizeContent(content) {
+  const sanitized = {};
+
+  Object.keys(CONTENT_FILES).forEach((key) => {
+    sanitized[key] = typeof content?.[key] === 'string' ? normalizeText(content[key]) : FALLBACK_CONTENT[key];
+  });
+
+  const title = typeof content?.title === 'string' ? content.title.trim() : '';
+  sanitized.title = title || DEFAULT_PROJECT_TITLE;
+
+  return sanitized;
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveDraft(content) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(content));
 }
 
 async function loadContent() {
@@ -89,7 +118,7 @@ async function loadContent() {
     })
   );
 
-  return Object.fromEntries(entries);
+  return { title: DEFAULT_PROJECT_TITLE, ...Object.fromEntries(entries) };
 }
 
 function parseCharacter(text) {
@@ -129,6 +158,7 @@ function parsePrompts(text) {
 
 function buildBrief(content) {
   return [
+    (content.title || DEFAULT_PROJECT_TITLE).toUpperCase(),
     'TRAILER CREATOR DOSSIER',
     '',
     'STORY HOOK',
@@ -195,11 +225,26 @@ function downloadText(filename, text) {
   showToast('Brief downloaded.');
 }
 
+function downloadJson(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  showToast('Project exported.');
+}
+
 function renderSummary(content, scenes, prompts) {
   const summaryStrip = document.getElementById('summaryStrip');
   const narrationWords = content.narration.split(/\s+/).filter(Boolean).length;
   const stats = [
-    { label: 'Core premise', value: '1 hook', note: 'Single story spark anchored for pitching.' },
+    { label: 'Project', value: content.title, note: 'Current local draft title.' },
     { label: 'Key scenes', value: `${scenes.length} beats`, note: 'A clean trailer rhythm for visuals.' },
     { label: 'Prompt pack', value: `${prompts.length} prompts`, note: 'Ready to move into image generation.' },
     { label: 'Narration', value: `${narrationWords} words`, note: 'Voiceover draft with pacing built in.' }
@@ -285,32 +330,20 @@ function renderNarration(text) {
   document.getElementById('narrationContent').textContent = text;
 }
 
-function wireCopyButtons(content, brief) {
-  document.getElementById('copyBriefBtn').addEventListener('click', () => copyText(brief, 'Full brief copied.'));
-  document.getElementById('downloadBriefBtn').addEventListener('click', () => downloadText('trailer-dossier.txt', brief));
-
-  const lookup = {
-    overviewContent: ['OVERVIEW', content.storyHook, '', content.lore].join('\n'),
-    characterContent: ['CHARACTER', content.character].join('\n\n'),
-    scenesContent: ['KEY SCENES', content.scenes].join('\n\n'),
-    promptsContent: ['IMAGE PROMPTS', content.prompts].join('\n\n'),
-    narrationContent: ['NARRATION', content.narration].join('\n\n')
-  };
-
-  document.querySelectorAll('.copy-section').forEach((button) => {
-    button.addEventListener('click', () => {
-      const targetId = button.dataset.copyTarget;
-      copyText(lookup[targetId], 'Section copied.');
-    });
-  });
+function bindInputs(content) {
+  document.getElementById('projectTitleInput').value = content.title;
+  document.getElementById('storyHookInput').value = content.storyHook;
+  document.getElementById('characterInput').value = content.character;
+  document.getElementById('loreInput').value = content.lore;
+  document.getElementById('scenesInput').value = content.scenes;
+  document.getElementById('promptsInput').value = content.prompts;
+  document.getElementById('narrationInput').value = content.narration;
 }
 
-async function initialize() {
-  const content = await loadContent();
+function renderAll(content) {
   const characterFields = parseCharacter(content.character);
   const scenes = parseScenes(content.scenes);
   const prompts = parsePrompts(content.prompts);
-  const brief = buildBrief(content);
 
   renderSummary(content, scenes, prompts);
   renderOverview(content);
@@ -318,7 +351,125 @@ async function initialize() {
   renderScenes(scenes);
   renderPrompts(prompts);
   renderNarration(content.narration);
-  wireCopyButtons(content, brief);
+}
+
+function updateProjectLabel(content) {
+  document.title = `${content.title} | Trailer Creator`;
+}
+
+function wireCopyButtons(getContent) {
+  document.getElementById('copyBriefBtn').addEventListener('click', () => {
+    copyText(buildBrief(getContent()), 'Full brief copied.');
+  });
+
+  document.getElementById('downloadBriefBtn').addEventListener('click', () => {
+    const content = getContent();
+    const slug = content.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'trailer-dossier';
+    downloadText(`${slug}.txt`, buildBrief(content));
+  });
+
+  const lookup = {
+    overviewContent: (content) => ['OVERVIEW', content.storyHook, '', content.lore].join('\n'),
+    characterContent: (content) => ['CHARACTER', content.character].join('\n\n'),
+    scenesContent: (content) => ['KEY SCENES', content.scenes].join('\n\n'),
+    promptsContent: (content) => ['IMAGE PROMPTS', content.prompts].join('\n\n'),
+    narrationContent: (content) => ['NARRATION', content.narration].join('\n\n')
+  };
+
+  document.querySelectorAll('.copy-section').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = button.dataset.copyTarget;
+      copyText(lookup[targetId](getContent()), 'Section copied.');
+    });
+  });
+}
+
+function wireDraftControls(state, sourceContent) {
+  const importInput = document.getElementById('importJsonInput');
+
+  const applyChange = (key, value) => {
+    state.content = sanitizeContent({
+      ...state.content,
+      [key]: value
+    });
+    saveDraft(state.content);
+    updateProjectLabel(state.content);
+    renderAll(state.content);
+  };
+
+  [
+    ['projectTitleInput', 'title'],
+    ['storyHookInput', 'storyHook'],
+    ['characterInput', 'character'],
+    ['loreInput', 'lore'],
+    ['scenesInput', 'scenes'],
+    ['promptsInput', 'prompts'],
+    ['narrationInput', 'narration']
+  ].forEach(([elementId, key]) => {
+    document.getElementById(elementId).addEventListener('input', (event) => {
+      applyChange(key, event.target.value);
+    });
+  });
+
+  document.getElementById('exportJsonBtn').addEventListener('click', () => {
+    const content = state.content;
+    const slug = content.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'trailer-project';
+    downloadJson(`${slug}.json`, content);
+  });
+
+  document.getElementById('importJsonBtn').addEventListener('click', () => importInput.click());
+
+  importInput.addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      state.content = sanitizeContent(parsed);
+      bindInputs(state.content);
+      saveDraft(state.content);
+      updateProjectLabel(state.content);
+      renderAll(state.content);
+      showToast('Project imported.');
+    } catch (error) {
+      showToast(`Import failed: ${error.message}`);
+    } finally {
+      importInput.value = '';
+    }
+  });
+
+  document.getElementById('resetDraftBtn').addEventListener('click', () => {
+    if (!window.confirm('Reset the local draft and restore the source text files?')) {
+      return;
+    }
+
+    state.content = sanitizeContent(sourceContent);
+    localStorage.removeItem(STORAGE_KEY);
+    bindInputs(state.content);
+    updateProjectLabel(state.content);
+    renderAll(state.content);
+    showToast('Draft reset to source files.');
+  });
+}
+
+async function initialize() {
+  const sourceContent = sanitizeContent(await loadContent());
+  const draft = sanitizeContent({
+    ...sourceContent,
+    ...loadDraft()
+  });
+  const state = { content: draft };
+
+  bindInputs(state.content);
+  updateProjectLabel(state.content);
+  renderAll(state.content);
+  wireCopyButtons(() => state.content);
+  wireDraftControls(state, sourceContent);
+  saveDraft(state.content);
 }
 
 document.addEventListener('DOMContentLoaded', initialize);

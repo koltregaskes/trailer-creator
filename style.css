@@ -111,6 +111,52 @@ body {
   justify-content: flex-end;
 }
 
+.field {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.field--stacked {
+  margin-top: 0;
+}
+
+.field__label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.field__input,
+.field__textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 233, 199, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  padding: 14px 16px;
+}
+
+.field__input::placeholder,
+.field__textarea::placeholder {
+  color: rgba(201, 187, 158, 0.62);
+}
+
+.field__textarea {
+  min-height: 160px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.field__input:focus-visible,
+.field__textarea:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .summary-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -201,6 +247,13 @@ body {
 .stack {
   display: grid;
   gap: 14px;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
 }
 
 .content-block,
@@ -361,6 +414,7 @@ body {
   }
 
   .summary-strip,
+  .editor-grid,
   .detail-grid,
   .card-grid {
     grid-template-columns: 1fr;

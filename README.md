@@ -16,8 +16,9 @@ It pulls together the story hook, character, lore, key scenes, image prompts, an
 - Launchable local tool
 - Core dossier workflow is in place
 - Source text files can be loaded into the browser experience
-- Copy and download flows are already wired
+- Copy, download, JSON import/export, and local draft save are already wired
 - Installable as a lightweight PWA for quick access on desktop or Android
+- Editable project title, hook, lore, scenes, prompts, and narration with live preview
 
 ## Key Files
 
@@ -30,7 +31,7 @@ It pulls together the story hook, character, lore, key scenes, image prompts, an
 
 ## Next Likely Improvements
 
-- Multiple trailer projects instead of one dossier at a time
+- Multiple named trailer projects instead of one browser draft at a time
 - Better export formats
 - Media attachment support
 - A path into the wider tools or hub system if this becomes part of a larger content workflow

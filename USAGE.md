@@ -1,7 +1,8 @@
 # Usage
 
-1. Open the page and use the section nav to jump between the dossier blocks.
-2. Use `Copy full brief` to grab the whole concept pack.
-3. Use `Download brief` to export a plain-text trailer dossier.
-4. Use the per-section and per-card copy buttons when you only need one beat or one prompt.
-5. Update the adjacent `.txt` files if you want the source material to evolve.
+1. Open the page and give the project a title.
+2. Edit the hook, lore, character, scenes, prompts, and narration directly in the page.
+3. Use `Copy full brief` or `Download brief` when you want the current draft as a text dossier.
+4. Use `Export JSON` to save the whole working draft and `Import JSON` to reopen it later.
+5. Use the per-section and per-card copy buttons when you only need one beat or one prompt.
+6. Use `Reset draft` if you want to discard local edits and go back to the source text files.

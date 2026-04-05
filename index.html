@@ -23,12 +23,20 @@
           A local workspace for the core story hook, lore, key scenes, image prompts, and narration that shape a
           sci-fi trailer concept.
         </p>
+        <label class="field">
+          <span class="field__label">Project title</span>
+          <input id="projectTitleInput" class="field__input" type="text" placeholder="Silent Epoch" />
+        </label>
       </div>
 
       <div class="hero__actions">
         <button class="btn btn--ghost" id="installAppBtn" type="button" hidden>Install app</button>
         <button class="btn btn--ghost" id="copyBriefBtn" type="button">Copy full brief</button>
         <button class="btn btn--primary" id="downloadBriefBtn" type="button">Download brief</button>
+        <button class="btn btn--ghost" id="exportJsonBtn" type="button">Export JSON</button>
+        <button class="btn btn--ghost" id="importJsonBtn" type="button">Import JSON</button>
+        <button class="btn btn--ghost" id="resetDraftBtn" type="button">Reset draft</button>
+        <input id="importJsonInput" type="file" accept="application/json" hidden />
       </div>
     </header>
 
@@ -51,6 +59,16 @@
           </div>
           <button class="btn btn--ghost copy-section" data-copy-target="overviewContent" type="button">Copy section</button>
         </div>
+        <div class="editor-grid">
+          <label class="field field--stacked">
+            <span class="field__label">Story hook</span>
+            <textarea id="storyHookInput" class="field__textarea" rows="5"></textarea>
+          </label>
+          <label class="field field--stacked">
+            <span class="field__label">World anchor</span>
+            <textarea id="loreInput" class="field__textarea" rows="7"></textarea>
+          </label>
+        </div>
         <div class="stack" id="overviewContent"></div>
       </section>
 
@@ -62,6 +80,10 @@
           </div>
           <button class="btn btn--ghost copy-section" data-copy-target="characterContent" type="button">Copy section</button>
         </div>
+        <label class="field field--stacked">
+          <span class="field__label">Character sheet</span>
+          <textarea id="characterInput" class="field__textarea" rows="10"></textarea>
+        </label>
         <div class="detail-grid" id="characterContent"></div>
       </section>
 
@@ -73,6 +95,15 @@
           </div>
           <button class="btn btn--ghost copy-section" data-copy-target="scenesContent" type="button">Copy section</button>
         </div>
+        <label class="field field--stacked">
+          <span class="field__label">Scene beats</span>
+          <textarea
+            id="scenesInput"
+            class="field__textarea"
+            rows="10"
+            placeholder="Use blank lines between scenes."
+          ></textarea>
+        </label>
         <div class="card-grid" id="scenesContent"></div>
       </section>
 
@@ -84,6 +115,15 @@
           </div>
           <button class="btn btn--ghost copy-section" data-copy-target="promptsContent" type="button">Copy section</button>
         </div>
+        <label class="field field--stacked">
+          <span class="field__label">Prompt pack</span>
+          <textarea
+            id="promptsInput"
+            class="field__textarea"
+            rows="12"
+            placeholder="Use blank lines between prompt blocks."
+          ></textarea>
+        </label>
         <div class="card-grid card-grid--prompts" id="promptsContent"></div>
       </section>
 
@@ -95,6 +135,10 @@
           </div>
           <button class="btn btn--ghost copy-section" data-copy-target="narrationContent" type="button">Copy section</button>
         </div>
+        <label class="field field--stacked">
+          <span class="field__label">Narration draft</span>
+          <textarea id="narrationInput" class="field__textarea" rows="14"></textarea>
+        </label>
         <pre class="script-block" id="narrationContent"></pre>
       </section>
     </main>
