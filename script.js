@@ -237,7 +237,7 @@ function downloadJson(filename, payload) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 
-  showToast('Project exported.');
+  showToast('Project JSON exported.');
 }
 
 function renderSummary(content, scenes, prompts) {
@@ -415,6 +415,10 @@ function wireDraftControls(state, sourceContent) {
     const content = state.content;
     const slug = content.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'trailer-project';
     downloadJson(`${slug}.json`, content);
+  });
+
+  document.getElementById('copyJsonBtn').addEventListener('click', () => {
+    copyText(JSON.stringify(state.content, null, 2), 'Project JSON copied.');
   });
 
   document.getElementById('importJsonBtn').addEventListener('click', () => importInput.click());
