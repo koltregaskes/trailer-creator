@@ -35,3 +35,9 @@ It pulls together the story hook, character, lore, key scenes, image prompts, an
 - Better export formats
 - Media attachment support
 - A path into the wider tools or hub system if this becomes part of a larger content workflow
+
+## Local-Only Files
+
+- `.autolab/` is used for internal AutoResearch and should remain untracked
+- `.env*` files are local-only
+- `.local/` and `*.local.md` are for planning notes and are ignored
