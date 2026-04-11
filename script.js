@@ -1,4 +1,8 @@
-const STORAGE_KEY = 'trailer-creator:draft-v2';
+const STORAGE_KEYS = {
+  legacyDraft: 'trailer-creator:draft-v2',
+  projects: 'trailer-creator:projects-v1',
+  currentProjectId: 'trailer-creator:current-project-id'
+};
 const DEFAULT_PROJECT_TITLE = 'Untitled trailer concept';
 
 const CONTENT_FILES = {
@@ -88,17 +92,150 @@ function sanitizeContent(content) {
   return sanitized;
 }
 
-function loadDraft() {
+function cloneContent(content) {
+  return JSON.parse(JSON.stringify(sanitizeContent(content)));
+}
+
+function createProjectId() {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+
+  return `project-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildUniqueProjectTitle(baseTitle, projects) {
+  const normalizedBaseTitle = (baseTitle || DEFAULT_PROJECT_TITLE).trim() || DEFAULT_PROJECT_TITLE;
+  const existingTitles = new Set(projects.map((project) => (project.title || '').trim().toLowerCase()));
+
+  if (!existingTitles.has(normalizedBaseTitle.toLowerCase())) {
+    return normalizedBaseTitle;
+  }
+
+  let index = 2;
+  while (existingTitles.has(`${normalizedBaseTitle} ${index}`.toLowerCase())) {
+    index += 1;
+  }
+
+  return `${normalizedBaseTitle} ${index}`;
+}
+
+function createProjectRecord(content, overrides = {}, existingProjects = []) {
+  const normalizedContent = sanitizeContent(content);
+  const title = buildUniqueProjectTitle(overrides.title || normalizedContent.title, existingProjects);
+
+  return {
+    id: overrides.id || createProjectId(),
+    title,
+    updatedAt: overrides.updatedAt || new Date().toISOString(),
+    content: {
+      ...normalizedContent,
+      title
+    }
+  };
+}
+
+function loadLegacyDraft() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEYS.legacyDraft);
     return raw ? JSON.parse(raw) : null;
   } catch (_) {
     return null;
   }
 }
 
-function saveDraft(content) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(content));
+function saveLegacyDraft(content) {
+  localStorage.setItem(STORAGE_KEYS.legacyDraft, JSON.stringify(content));
+}
+
+function loadProjectLibrary() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.projects);
+    const parsed = raw ? JSON.parse(raw) : [];
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map((project) => {
+        const content = sanitizeContent(project?.content || project);
+        const title = (project?.title || content.title || DEFAULT_PROJECT_TITLE).trim() || DEFAULT_PROJECT_TITLE;
+
+        return {
+          id: typeof project?.id === 'string' && project.id.trim() ? project.id : createProjectId(),
+          title,
+          updatedAt: typeof project?.updatedAt === 'string' && project.updatedAt.trim()
+            ? project.updatedAt
+            : new Date().toISOString(),
+          content: {
+            ...content,
+            title
+          }
+        };
+      });
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveProjectLibrary(projects) {
+  localStorage.setItem(STORAGE_KEYS.projects, JSON.stringify(projects));
+}
+
+function loadCurrentProjectId() {
+  return localStorage.getItem(STORAGE_KEYS.currentProjectId) || '';
+}
+
+function saveCurrentProjectId(projectId) {
+  localStorage.setItem(STORAGE_KEYS.currentProjectId, projectId);
+}
+
+function getCurrentProject(state) {
+  return state.projects.find((project) => project.id === state.currentProjectId) || state.projects[0] || null;
+}
+
+function persistProjectState(state) {
+  saveProjectLibrary(state.projects);
+
+  const currentProject = getCurrentProject(state);
+  if (currentProject) {
+    state.currentProjectId = currentProject.id;
+    saveCurrentProjectId(currentProject.id);
+    saveLegacyDraft(currentProject.content);
+  }
+}
+
+function initializeProjectState(sourceContent) {
+  const existingProjects = loadProjectLibrary();
+
+  if (existingProjects.length) {
+    const preferredProjectId = loadCurrentProjectId();
+    const currentProjectId = existingProjects.some((project) => project.id === preferredProjectId)
+      ? preferredProjectId
+      : existingProjects[0].id;
+
+    const state = {
+      projects: existingProjects,
+      currentProjectId
+    };
+    persistProjectState(state);
+    return state;
+  }
+
+  const legacyDraft = loadLegacyDraft();
+  const seedContent = sanitizeContent({
+    ...sourceContent,
+    ...(legacyDraft || {})
+  });
+
+  const seedProject = createProjectRecord(seedContent, {}, []);
+  const state = {
+    projects: [seedProject],
+    currentProjectId: seedProject.id
+  };
+  persistProjectState(state);
+  return state;
 }
 
 async function loadContent() {
@@ -190,6 +327,14 @@ function showToast(message) {
   showToast.timeoutId = window.setTimeout(() => {
     toast.classList.remove('toast--visible');
   }, 1800);
+}
+
+function formatProjectTimestamp(value) {
+  if (!value) {
+    return 'No saved time yet';
+  }
+
+  return new Date(value).toLocaleString();
 }
 
 async function copyText(text, successMessage) {
@@ -357,6 +502,50 @@ function updateProjectLabel(content) {
   document.title = `${content.title} | Trailer Creator`;
 }
 
+function renderProjectLibrary(state) {
+  const currentProject = getCurrentProject(state);
+  const library = document.getElementById('projectLibrary');
+  const meta = document.getElementById('projectLibraryMeta');
+
+  meta.textContent = currentProject
+    ? `${state.projects.length} local project${state.projects.length === 1 ? '' : 's'} · Active updated ${formatProjectTimestamp(currentProject.updatedAt)}`
+    : 'No local projects saved';
+
+  library.innerHTML = '';
+
+  state.projects.forEach((project) => {
+    const card = document.createElement('article');
+    const isActive = project.id === state.currentProjectId;
+
+    card.className = `project-card${isActive ? ' is-active' : ''}`;
+    card.innerHTML = `
+      <div class="project-card__head">
+        <div>
+          <p class="eyebrow">${isActive ? 'Active project' : 'Saved project'}</p>
+          <h3>${project.title}</h3>
+        </div>
+        <button class="btn btn--ghost btn--small" type="button">${isActive ? 'Current' : 'Open'}</button>
+      </div>
+      <p class="project-card__meta">Updated ${formatProjectTimestamp(project.updatedAt)}</p>
+      <p class="project-card__preview">${project.content.storyHook.slice(0, 160)}${project.content.storyHook.length > 160 ? '...' : ''}</p>
+    `;
+
+    const actionButton = card.querySelector('button');
+    actionButton.disabled = isActive;
+    actionButton.addEventListener('click', () => {
+      state.currentProjectId = project.id;
+      persistProjectState(state);
+      bindInputs(project.content);
+      updateProjectLabel(project.content);
+      renderAll(project.content);
+      renderProjectLibrary(state);
+      showToast(`${project.title} opened.`);
+    });
+
+    library.appendChild(card);
+  });
+}
+
 function wireCopyButtons(getContent) {
   document.getElementById('copyBriefBtn').addEventListener('click', () => {
     copyText(buildBrief(getContent()), 'Full brief copied.');
@@ -387,15 +576,111 @@ function wireCopyButtons(getContent) {
 function wireDraftControls(state, sourceContent) {
   const importInput = document.getElementById('importJsonInput');
 
+  const syncCurrentProject = (nextContent) => {
+    const currentProject = getCurrentProject(state);
+    if (!currentProject) {
+      return;
+    }
+
+    const sanitizedContent = sanitizeContent(nextContent);
+    currentProject.title = sanitizedContent.title;
+    currentProject.updatedAt = new Date().toISOString();
+    currentProject.content = {
+      ...sanitizedContent,
+      title: currentProject.title
+    };
+    persistProjectState(state);
+    updateProjectLabel(currentProject.content);
+    renderAll(currentProject.content);
+    renderProjectLibrary(state);
+  };
+
   const applyChange = (key, value) => {
-    state.content = sanitizeContent({
-      ...state.content,
+    const currentProject = getCurrentProject(state);
+    if (!currentProject) {
+      return;
+    }
+
+    syncCurrentProject({
+      ...currentProject.content,
       [key]: value
     });
-    saveDraft(state.content);
-    updateProjectLabel(state.content);
-    renderAll(state.content);
   };
+
+  document.getElementById('newProjectBtn').addEventListener('click', () => {
+    const nextTitle = buildUniqueProjectTitle(DEFAULT_PROJECT_TITLE, state.projects);
+    const nextProject = createProjectRecord({
+      ...cloneContent(sourceContent),
+      title: nextTitle
+    }, { title: nextTitle }, state.projects);
+    state.projects.unshift(nextProject);
+    state.currentProjectId = nextProject.id;
+    persistProjectState(state);
+    bindInputs(nextProject.content);
+    updateProjectLabel(nextProject.content);
+    renderAll(nextProject.content);
+    renderProjectLibrary(state);
+    showToast('New project created.');
+  });
+
+  document.getElementById('duplicateProjectBtn').addEventListener('click', () => {
+    const currentProject = getCurrentProject(state);
+    if (!currentProject) {
+      return;
+    }
+
+    const duplicateTitle = buildUniqueProjectTitle(`${currentProject.title} copy`, state.projects);
+    const duplicateProject = createProjectRecord({
+      ...cloneContent(currentProject.content),
+      title: duplicateTitle
+    }, { title: duplicateTitle }, state.projects);
+    state.projects.unshift(duplicateProject);
+    state.currentProjectId = duplicateProject.id;
+    persistProjectState(state);
+    bindInputs(duplicateProject.content);
+    updateProjectLabel(duplicateProject.content);
+    renderAll(duplicateProject.content);
+    renderProjectLibrary(state);
+    showToast('Project duplicated.');
+  });
+
+  document.getElementById('deleteProjectBtn').addEventListener('click', () => {
+    const currentProject = getCurrentProject(state);
+    if (!currentProject) {
+      return;
+    }
+
+    if (state.projects.length === 1) {
+      if (!window.confirm('Only one project is saved right now. Reset it back to the source files?')) {
+        return;
+      }
+
+      const resetProject = createProjectRecord(sourceContent, { id: currentProject.id, title: DEFAULT_PROJECT_TITLE }, []);
+      state.projects = [resetProject];
+      state.currentProjectId = resetProject.id;
+      persistProjectState(state);
+      bindInputs(resetProject.content);
+      updateProjectLabel(resetProject.content);
+      renderAll(resetProject.content);
+      renderProjectLibrary(state);
+      showToast('Current project reset.');
+      return;
+    }
+
+    if (!window.confirm(`Delete "${currentProject.title}" from this browser workspace?`)) {
+      return;
+    }
+
+    state.projects = state.projects.filter((project) => project.id !== currentProject.id);
+    state.currentProjectId = state.projects[0].id;
+    persistProjectState(state);
+    const nextProject = getCurrentProject(state);
+    bindInputs(nextProject.content);
+    updateProjectLabel(nextProject.content);
+    renderAll(nextProject.content);
+    renderProjectLibrary(state);
+    showToast('Project deleted.');
+  });
 
   [
     ['projectTitleInput', 'title'],
@@ -412,13 +697,13 @@ function wireDraftControls(state, sourceContent) {
   });
 
   document.getElementById('exportJsonBtn').addEventListener('click', () => {
-    const content = state.content;
+    const content = getCurrentProject(state).content;
     const slug = content.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'trailer-project';
     downloadJson(`${slug}.json`, content);
   });
 
   document.getElementById('copyJsonBtn').addEventListener('click', () => {
-    copyText(JSON.stringify(state.content, null, 2), 'Project JSON copied.');
+    copyText(JSON.stringify(getCurrentProject(state).content, null, 2), 'Project JSON copied.');
   });
 
   document.getElementById('importJsonBtn').addEventListener('click', () => importInput.click());
@@ -433,12 +718,19 @@ function wireDraftControls(state, sourceContent) {
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      state.content = sanitizeContent(parsed);
-      bindInputs(state.content);
-      saveDraft(state.content);
-      updateProjectLabel(state.content);
-      renderAll(state.content);
-      showToast('Project imported.');
+      const importedTitle = buildUniqueProjectTitle(parsed?.title || DEFAULT_PROJECT_TITLE, state.projects);
+      const importedProject = createProjectRecord({
+        ...sanitizeContent(parsed),
+        title: importedTitle
+      }, { title: importedTitle }, state.projects);
+      state.projects.unshift(importedProject);
+      state.currentProjectId = importedProject.id;
+      persistProjectState(state);
+      bindInputs(importedProject.content);
+      updateProjectLabel(importedProject.content);
+      renderAll(importedProject.content);
+      renderProjectLibrary(state);
+      showToast('Project imported as a new local project.');
     } catch (error) {
       showToast(`Import failed: ${error.message}`);
     } finally {
@@ -447,33 +739,38 @@ function wireDraftControls(state, sourceContent) {
   });
 
   document.getElementById('resetDraftBtn').addEventListener('click', () => {
-    if (!window.confirm('Reset the local draft and restore the source text files?')) {
+    if (!window.confirm('Reset the current project and restore the source text files?')) {
       return;
     }
 
-    state.content = sanitizeContent(sourceContent);
-    localStorage.removeItem(STORAGE_KEY);
-    bindInputs(state.content);
-    updateProjectLabel(state.content);
-    renderAll(state.content);
-    showToast('Draft reset to source files.');
+    const currentProject = getCurrentProject(state);
+    const resetProject = createProjectRecord(sourceContent, {
+      id: currentProject.id,
+      title: buildUniqueProjectTitle(DEFAULT_PROJECT_TITLE, state.projects.filter((project) => project.id !== currentProject.id))
+    }, state.projects.filter((project) => project.id !== currentProject.id));
+    state.projects = state.projects.map((project) => (project.id === currentProject.id ? resetProject : project));
+    state.currentProjectId = resetProject.id;
+    persistProjectState(state);
+    bindInputs(resetProject.content);
+    updateProjectLabel(resetProject.content);
+    renderAll(resetProject.content);
+    renderProjectLibrary(state);
+    showToast('Current project reset to source files.');
   });
 }
 
 async function initialize() {
   const sourceContent = sanitizeContent(await loadContent());
-  const draft = sanitizeContent({
-    ...sourceContent,
-    ...loadDraft()
-  });
-  const state = { content: draft };
+  const state = initializeProjectState(sourceContent);
+  const currentProject = getCurrentProject(state);
 
-  bindInputs(state.content);
-  updateProjectLabel(state.content);
-  renderAll(state.content);
-  wireCopyButtons(() => state.content);
+  bindInputs(currentProject.content);
+  updateProjectLabel(currentProject.content);
+  renderAll(currentProject.content);
+  renderProjectLibrary(state);
+  wireCopyButtons(() => getCurrentProject(state).content);
   wireDraftControls(state, sourceContent);
-  saveDraft(state.content);
+  persistProjectState(state);
 }
 
 document.addEventListener('DOMContentLoaded', initialize);

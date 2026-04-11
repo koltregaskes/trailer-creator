@@ -41,6 +41,22 @@
       </div>
     </header>
 
+    <section class="project-strip" aria-labelledby="projectLibraryHeading">
+      <div class="project-strip__head">
+        <div>
+          <p class="eyebrow">Project shelf</p>
+          <h2 id="projectLibraryHeading">Saved trailer projects</h2>
+        </div>
+        <p id="projectLibraryMeta" class="project-strip__meta">1 local project ready</p>
+      </div>
+      <div class="project-strip__actions">
+        <button class="btn btn--ghost" id="newProjectBtn" type="button">New project</button>
+        <button class="btn btn--ghost" id="duplicateProjectBtn" type="button">Duplicate current</button>
+        <button class="btn btn--ghost" id="deleteProjectBtn" type="button">Delete current</button>
+      </div>
+      <div class="project-library" id="projectLibrary" aria-label="Saved trailer projects"></div>
+    </section>
+
     <section class="summary-strip" id="summaryStrip" aria-label="Project summary"></section>
 
     <nav class="section-nav" aria-label="Dossier sections">
