@@ -4,6 +4,7 @@ const STORAGE_KEYS = {
   currentProjectId: 'trailer-creator:current-project-id'
 };
 const DEFAULT_PROJECT_TITLE = 'Untitled trailer concept';
+const TRAILER_PACKAGE_TYPE = 'trailer-package-v1';
 
 const CONTENT_FILES = {
   storyHook: 'story_hook.txt',
@@ -133,6 +134,10 @@ function createProjectRecord(content, overrides = {}, existingProjects = []) {
       title
     }
   };
+}
+
+function slugifyTitle(title, fallback = 'trailer-project') {
+  return (title || fallback).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback;
 }
 
 function loadLegacyDraft() {
@@ -318,6 +323,75 @@ function buildBrief(content) {
   ].join('\n');
 }
 
+function buildPackageSourceFiles(sourceContent) {
+  return Object.fromEntries(
+    Object.entries(CONTENT_FILES).map(([key, file]) => [
+      key,
+      {
+        file,
+        content: typeof sourceContent?.[key] === 'string' ? normalizeText(sourceContent[key]) : FALLBACK_CONTENT[key]
+      }
+    ])
+  );
+}
+
+function buildTrailerPackage(state, sourceContent) {
+  const currentProject = getCurrentProject(state);
+  if (!currentProject) {
+    return null;
+  }
+
+  const projectContent = cloneContent(currentProject.content);
+
+  return {
+    packageType: TRAILER_PACKAGE_TYPE,
+    packageVersion: 1,
+    exportedAt: new Date().toISOString(),
+    project: {
+      id: currentProject.id,
+      title: currentProject.title,
+      updatedAt: currentProject.updatedAt,
+      content: projectContent
+    },
+    brief: buildBrief(projectContent),
+    summary: {
+      title: projectContent.title,
+      keyScenes: parseScenes(projectContent.scenes).length,
+      promptBlocks: parsePrompts(projectContent.prompts).length,
+      narrationWords: projectContent.narration.split(/\s+/).filter(Boolean).length
+    },
+    sourceDraft: {
+      title: sourceContent.title,
+      content: cloneContent(sourceContent),
+      files: buildPackageSourceFiles(sourceContent)
+    }
+  };
+}
+
+function unwrapImportedContent(payload) {
+  if (payload && payload.packageType === TRAILER_PACKAGE_TYPE && payload.project?.content) {
+    return sanitizeContent(payload.project.content);
+  }
+
+  if (payload && typeof payload.content === 'object') {
+    return sanitizeContent(payload.content);
+  }
+
+  return sanitizeContent(payload);
+}
+
+function unwrapImportedTitle(payload, content) {
+  if (payload && payload.packageType === TRAILER_PACKAGE_TYPE && typeof payload.project?.title === 'string' && payload.project.title.trim()) {
+    return payload.project.title.trim();
+  }
+
+  if (typeof payload?.title === 'string' && payload.title.trim()) {
+    return payload.title.trim();
+  }
+
+  return content.title || DEFAULT_PROJECT_TITLE;
+}
+
 function showToast(message) {
   const toast = document.getElementById('toast');
   toast.textContent = message;
@@ -370,7 +444,7 @@ function downloadText(filename, text) {
   showToast('Brief downloaded.');
 }
 
-function downloadJson(filename, payload) {
+function downloadJson(filename, payload, successMessage = 'Project JSON exported.') {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -382,7 +456,7 @@ function downloadJson(filename, payload) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 
-  showToast('Project JSON exported.');
+  showToast(successMessage);
 }
 
 function renderSummary(content, scenes, prompts) {
@@ -698,8 +772,20 @@ function wireDraftControls(state, sourceContent) {
 
   document.getElementById('exportJsonBtn').addEventListener('click', () => {
     const content = getCurrentProject(state).content;
-    const slug = content.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'trailer-project';
-    downloadJson(`${slug}.json`, content);
+    downloadJson(`${slugifyTitle(content.title)}.json`, content);
+  });
+
+  document.getElementById('exportPackageBtn').addEventListener('click', () => {
+    const packagePayload = buildTrailerPackage(state, sourceContent);
+    if (!packagePayload) {
+      return;
+    }
+
+    downloadJson(
+      `${slugifyTitle(packagePayload.project.title, 'trailer-package')}.trailer-package.json`,
+      packagePayload,
+      'Trailer package exported.'
+    );
   });
 
   document.getElementById('copyJsonBtn').addEventListener('click', () => {
@@ -718,9 +804,13 @@ function wireDraftControls(state, sourceContent) {
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      const importedTitle = buildUniqueProjectTitle(parsed?.title || DEFAULT_PROJECT_TITLE, state.projects);
+      const importedContent = unwrapImportedContent(parsed);
+      const importedTitle = buildUniqueProjectTitle(
+        unwrapImportedTitle(parsed, importedContent) || DEFAULT_PROJECT_TITLE,
+        state.projects
+      );
       const importedProject = createProjectRecord({
-        ...sanitizeContent(parsed),
+        ...importedContent,
         title: importedTitle
       }, { title: importedTitle }, state.projects);
       state.projects.unshift(importedProject);
