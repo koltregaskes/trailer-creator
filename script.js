@@ -1,5 +1,3 @@
-import { buildDeliveryChecklist } from './trailer-checklist.mjs';
-
 const STORAGE_KEYS = {
   legacyDraft: 'trailer-creator:draft-v2',
   projects: 'trailer-creator:projects-v1',
