@@ -1,3 +1,5 @@
+import { buildDeliveryChecklist } from './trailer-checklist.mjs';
+
 const STORAGE_KEYS = {
   legacyDraft: 'trailer-creator:draft-v2',
   projects: 'trailer-creator:projects-v1',
@@ -319,7 +321,10 @@ function buildBrief(content) {
     content.prompts,
     '',
     'NARRATION',
-    content.narration
+    content.narration,
+    '',
+    'DELIVERY CHECKLIST',
+    ...buildDeliveryChecklist(content).items.map((entry) => `${entry.ok ? 'READY' : 'MISSING'} ${entry.label}: ${entry.detail}`)
   ].join('\n');
 }
 
@@ -360,6 +365,11 @@ function buildTrailerPackage(state, sourceContent) {
       promptBlocks: parsePrompts(projectContent.prompts).length,
       narrationWords: projectContent.narration.split(/\s+/).filter(Boolean).length
     },
+    deliveryChecklist: buildDeliveryChecklist({
+      ...projectContent,
+      scenes: parseScenes(projectContent.scenes),
+      prompts: parsePrompts(projectContent.prompts)
+    }),
     sourceDraft: {
       title: sourceContent.title,
       content: cloneContent(sourceContent),
@@ -559,12 +569,36 @@ function bindInputs(content) {
   document.getElementById('narrationInput').value = content.narration;
 }
 
+function renderDeliveryChecklist(content, scenes, prompts) {
+  const list = document.getElementById('deliveryChecklist');
+  const checklist = buildDeliveryChecklist({
+    ...content,
+    scenes,
+    prompts
+  });
+
+  list.replaceChildren();
+  checklist.items.forEach((entry) => {
+    const item = document.createElement('li');
+    const status = document.createElement('strong');
+    const label = document.createElement('span');
+    const detail = document.createElement('span');
+
+    status.textContent = entry.ok ? 'Ready' : 'Missing';
+    label.textContent = entry.label;
+    detail.textContent = entry.detail;
+    item.append(status, label, detail);
+    list.appendChild(item);
+  });
+}
+
 function renderAll(content) {
   const characterFields = parseCharacter(content.character);
   const scenes = parseScenes(content.scenes);
   const prompts = parsePrompts(content.prompts);
 
   renderSummary(content, scenes, prompts);
+  renderDeliveryChecklist(content, scenes, prompts);
   renderOverview(content);
   renderCharacter(characterFields);
   renderScenes(scenes);
