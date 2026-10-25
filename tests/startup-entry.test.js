@@ -35,4 +35,21 @@ describe('file opening route', () => {
     assert.equal(checklist.ready, true)
     assert.equal(typeof context.module, 'undefined')
   })
+
+  it('does not register a service worker from a file URL', () => {
+    const pwa = readFileSync(new URL('../pwa.js', import.meta.url), 'utf8')
+    const registerAt = pwa.indexOf('navigator.serviceWorker.register')
+    const protocolGuard = pwa.indexOf('protocol !== "http:" && protocol !== "https:"')
+
+    assert.ok(protocolGuard !== -1)
+    assert.ok(registerAt !== -1)
+    assert.ok(protocolGuard < registerAt)
+  })
+
+  it('caches the classic checklist script in the app shell', () => {
+    const worker = readFileSync(new URL('../service-worker.js', import.meta.url), 'utf8')
+
+    assert.match(worker, /"\.\/trailer-checklist\.js"/)
+    assert.equal(worker.includes('trailer-checklist.mjs'), false)
+  })
 })

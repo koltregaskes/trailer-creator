@@ -1,10 +1,10 @@
-const CACHE_NAME = "trailer-creator-v2";
+const CACHE_NAME = "trailer-creator-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./script.js",
-  "./trailer-checklist.mjs",
+  "./trailer-checklist.js",
   "./pwa.js",
   "./manifest.json",
   "./icon.svg",

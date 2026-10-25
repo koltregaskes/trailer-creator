@@ -5,6 +5,11 @@ async function registerTrailerCreatorServiceWorker() {
     return;
   }
 
+  const protocol = window.location.protocol;
+  if (protocol !== "http:" && protocol !== "https:") {
+    return;
+  }
+
   try {
     await navigator.serviceWorker.register("./service-worker.js");
   } catch (error) {
