@@ -319,7 +319,10 @@ function buildBrief(content) {
     content.prompts,
     '',
     'NARRATION',
-    content.narration
+    content.narration,
+    '',
+    'DELIVERY CHECKLIST',
+    ...buildDeliveryChecklist(content).items.map((entry) => `${entry.ok ? 'READY' : 'MISSING'} ${entry.label}: ${entry.detail}`)
   ].join('\n');
 }
 
@@ -360,6 +363,11 @@ function buildTrailerPackage(state, sourceContent) {
       promptBlocks: parsePrompts(projectContent.prompts).length,
       narrationWords: projectContent.narration.split(/\s+/).filter(Boolean).length
     },
+    deliveryChecklist: buildDeliveryChecklist({
+      ...projectContent,
+      scenes: parseScenes(projectContent.scenes),
+      prompts: parsePrompts(projectContent.prompts)
+    }),
     sourceDraft: {
       title: sourceContent.title,
       content: cloneContent(sourceContent),
@@ -411,22 +419,54 @@ function formatProjectTimestamp(value) {
   return new Date(value).toLocaleString();
 }
 
-async function copyText(text, successMessage) {
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function copyWithSelection(text) {
+  const helper = document.createElement('textarea');
+  helper.value = text;
+  helper.setAttribute('readonly', 'readonly');
+  helper.style.position = 'fixed';
+  helper.style.top = '0';
+  helper.style.left = '0';
+  helper.style.opacity = '0';
+  document.body.appendChild(helper);
+  helper.focus();
+  helper.select();
+
+  let copied = false;
   try {
-    await navigator.clipboard.writeText(text);
+    copied = document.execCommand('copy');
   } catch (_) {
-    const helper = document.createElement('textarea');
-    helper.value = text;
-    helper.setAttribute('readonly', 'readonly');
-    helper.style.position = 'absolute';
-    helper.style.left = '-9999px';
-    document.body.appendChild(helper);
-    helper.select();
-    document.execCommand('copy');
+    copied = false;
+  } finally {
     document.body.removeChild(helper);
   }
 
-  showToast(successMessage);
+  return copied;
+}
+
+async function copyText(text, successMessage) {
+  if (copyWithSelection(text)) {
+    showToast(successMessage);
+    return;
+  }
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      showToast(successMessage);
+      return;
+    }
+  } catch (_) {}
+
+  showToast('Copy failed. Use a download instead.');
 }
 
 function downloadText(filename, text) {
@@ -473,7 +513,7 @@ function renderSummary(content, scenes, prompts) {
   stats.forEach((stat) => {
     const card = document.createElement('article');
     card.className = 'summary-card';
-    card.innerHTML = `<p>${stat.label}</p><strong>${stat.value}</strong><span>${stat.note}</span>`;
+    card.innerHTML = `<p>${stat.label}</p><strong>${escapeHtml(stat.value)}</strong><span>${stat.note}</span>`;
     summaryStrip.appendChild(card);
   });
 }
@@ -488,7 +528,7 @@ function renderOverview(content) {
   ].forEach((item) => {
     const block = document.createElement('article');
     block.className = 'content-block';
-    block.innerHTML = `<h3>${item.title}</h3><p>${item.body}</p>`;
+    block.innerHTML = `<h3>${item.title}</h3><p>${escapeHtml(item.body)}</p>`;
     container.appendChild(block);
   });
 }
@@ -500,7 +540,7 @@ function renderCharacter(fields) {
   fields.forEach((field) => {
     const card = document.createElement('article');
     card.className = 'detail-card';
-    card.innerHTML = `<p>${field.label}</p><h3>${field.value}</h3>`;
+    card.innerHTML = `<p>${escapeHtml(field.label)}</p><h3>${escapeHtml(field.value)}</h3>`;
     container.appendChild(card);
   });
 }
@@ -517,7 +557,7 @@ function renderScenes(scenes) {
         <p>Scene ${index + 1}</p>
         <button class="btn btn--ghost btn--small" type="button">Copy beat</button>
       </div>
-      <p>${scene}</p>
+      <p>${escapeHtml(scene)}</p>
     `;
 
     card.querySelector('button').addEventListener('click', () => copyText(scene, `Scene ${index + 1} copied.`));
@@ -534,10 +574,10 @@ function renderPrompts(prompts) {
     card.className = 'story-card story-card--prompt';
     card.innerHTML = `
       <div class="story-card__head">
-        <p>${prompt.title}</p>
+        <p>${escapeHtml(prompt.title)}</p>
         <button class="btn btn--ghost btn--small" type="button">Copy prompt</button>
       </div>
-      <p>${prompt.body}</p>
+      <p>${escapeHtml(prompt.body)}</p>
     `;
 
     card.querySelector('button').addEventListener('click', () => copyText(prompt.body, `${prompt.title} copied.`));
@@ -559,12 +599,36 @@ function bindInputs(content) {
   document.getElementById('narrationInput').value = content.narration;
 }
 
+function renderDeliveryChecklist(content, scenes, prompts) {
+  const list = document.getElementById('deliveryChecklist');
+  const checklist = buildDeliveryChecklist({
+    ...content,
+    scenes,
+    prompts
+  });
+
+  list.replaceChildren();
+  checklist.items.forEach((entry) => {
+    const item = document.createElement('li');
+    const status = document.createElement('strong');
+    const label = document.createElement('span');
+    const detail = document.createElement('span');
+
+    status.textContent = entry.ok ? 'Ready' : 'Missing';
+    label.textContent = entry.label;
+    detail.textContent = entry.detail;
+    item.append(status, label, detail);
+    list.appendChild(item);
+  });
+}
+
 function renderAll(content) {
   const characterFields = parseCharacter(content.character);
   const scenes = parseScenes(content.scenes);
   const prompts = parsePrompts(content.prompts);
 
   renderSummary(content, scenes, prompts);
+  renderDeliveryChecklist(content, scenes, prompts);
   renderOverview(content);
   renderCharacter(characterFields);
   renderScenes(scenes);
@@ -596,12 +660,12 @@ function renderProjectLibrary(state) {
       <div class="project-card__head">
         <div>
           <p class="eyebrow">${isActive ? 'Active project' : 'Saved project'}</p>
-          <h3>${project.title}</h3>
+          <h3>${escapeHtml(project.title)}</h3>
         </div>
         <button class="btn btn--ghost btn--small" type="button">${isActive ? 'Current' : 'Open'}</button>
       </div>
       <p class="project-card__meta">Updated ${formatProjectTimestamp(project.updatedAt)}</p>
-      <p class="project-card__preview">${project.content.storyHook.slice(0, 160)}${project.content.storyHook.length > 160 ? '...' : ''}</p>
+      <p class="project-card__preview">${escapeHtml(project.content.storyHook.slice(0, 160))}${project.content.storyHook.length > 160 ? '...' : ''}</p>
     `;
 
     const actionButton = card.querySelector('button');
