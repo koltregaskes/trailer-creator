@@ -244,6 +244,11 @@ function initializeProjectState(sourceContent) {
 }
 
 async function loadContent() {
+  // Browsers block fetch() from file:// pages and log a CORS error per file, so use the bundled draft directly.
+  if (globalThis.location?.protocol === 'file:') {
+    return { title: DEFAULT_PROJECT_TITLE, ...FALLBACK_CONTENT };
+  }
+
   const entries = await Promise.all(
     Object.entries(CONTENT_FILES).map(async ([key, file]) => {
       try {

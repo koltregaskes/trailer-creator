@@ -46,6 +46,37 @@ describe('file opening route', () => {
     assert.ok(protocolGuard < registerAt)
   })
 
+  it('uses the bundled draft from a file URL without fetching the source text files', async () => {
+    const script = readFileSync(new URL('../script.js', import.meta.url), 'utf8')
+    const prelude = script.slice(0, script.indexOf('function normalizeText'))
+    const start = script.indexOf('async function loadContent')
+    const end = script.indexOf('\nfunction parseCharacter', start)
+    const program = `${prelude}\nfunction normalizeText(text) { return text.trim() }\n${script.slice(start, end)}\nglobalThis.loadContent = loadContent;\nglobalThis.FALLBACK = FALLBACK_CONTENT;`
+
+    const load = async (protocol) => {
+      const fetched = []
+      const context = {
+        location: { protocol },
+        fetch: async (file) => {
+          fetched.push(file)
+          return { ok: true, text: async () => `served ${file}` }
+        },
+      }
+      context.globalThis = context
+      vm.runInNewContext(program, context)
+      return { content: await context.loadContent(), fetched, fallback: context.FALLBACK }
+    }
+
+    const offline = await load('file:')
+    assert.deepEqual(offline.fetched, [])
+    assert.equal(offline.content.storyHook, offline.fallback.storyHook)
+    assert.equal(offline.content.narration, offline.fallback.narration)
+
+    const served = await load('https:')
+    assert.equal(served.fetched.length, 6)
+    assert.equal(served.content.storyHook, 'served story_hook.txt')
+  })
+
   it('caches the classic checklist script in the app shell', () => {
     const worker = readFileSync(new URL('../service-worker.js', import.meta.url), 'utf8')
 
